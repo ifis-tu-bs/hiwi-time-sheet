@@ -1,0 +1,663 @@
+<html>
+<head>
+    <meta charset="utf-8" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js" /></script>
+</head>
+<body style="margin: 0 auto 600px auto; width: 900px;">
+
+<style type="text/css">
+    h1 { font-size: 1.5em; font-family: Arial; text-align: center; }
+    form, input, table { font-size: 16px; font-family: Arial; }
+    table { margin: 0; padding: 0; border: 0; empty-cells: show; }
+    th { font-weight: normal; }
+    div { margin-bottom: 2em; }
+    input[type="text"] { width: 300px; }
+    label { font-style: italic; cursor: pointer; }
+    strong { font-weight: bold; color: red; }
+    table.sheet { margin-top: 1.5em; width: 100%; border-collapse: collapse; }
+    table.sheet th { font-weight: bold; background-color: #eee; }
+    table.sheet th,
+    table.sheet td { padding: 0.2em 0.4em; border: 1px solid black; }
+    table.sheet tr:first-of-type td { border-top: 0; }
+    table.sheet tr td:nth-of-type(2),
+    table.sheet tr td:nth-of-type(3) { width: 90px; text-align: center; }
+    table.sheet tr td:not(:first-of-type):not(:nth-of-type(2)):not(:nth-of-type(3)) { width: 50px; text-align: center; }
+    table.sheet thead { border-bottom: 1px solid black; }
+    
+    table.sheet td { empty-cells: show; }
+    
+    .start_hour, .end_hour, .start_minute, .end_minute { width: 40px; }
+    
+    @media print {
+        /*table#sheet tbody, table#sheet tbody tr, table#sheet tbody tr td { display: block; }
+        table#sheet tbody { page-break-inside: avoid; page-break-after: auto; }
+        table#sheet thead { display: table-header-group; }*/
+        
+        form { display: none; }
+        table.sheet { display: block; page-break-inside: avoid; page-break-after: auto; }
+    }
+    
+</style>
+
+<form>
+    <div>
+        <label for="name">Name<strong>*</strong>:</label><br />
+        <input id="name" name="name" type="text" value="Max" />
+    </div>
+    <div>
+        <label for="surname">Surname<strong>*</strong>:</label><br />
+        <input id="surname" name="surname" type="text" value="Mustermann" />
+    </div>
+    <div>
+        <label for="institute">Institute<strong>*</strong>:</label><br />
+        <input id="institute" name="institute" type="text" value="Institut für Informationssysteme" />
+    </div>
+    <div>
+        <label for="hours_per_month">Working hours per month<strong>*</strong>:</label><br />
+        <input id="hours_per_month" name="hours_per_month" type="number" min="1" max="400" value="40" />
+    </div>
+    <div>
+        <label for="month_start"><b>First</b> month of contract:</label>
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <label for="month_start">Monat<strong>*</strong>:</label>
+                    </th>
+                    <th>
+                        <label for="year_start">Jahr<strong>*</strong>:</label>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <input id="month_start" name="month_start" type="number" value="2" min="1" max="12" />
+                    </td>
+                    <td>
+                        <input id="year_start" name="year_start" type="number" value="2015" min="2010" max="2050" />
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <label for="month_end"><b>Last</b> month of contract:</label>
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <label for="month_end">Monat<strong>*</strong>:</label>
+                    </th>
+                    <th>
+                        <label for="year_end">Jahr<strong>*</strong>:</label>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <input id="month_end" name="month_end" type="number" value="5" min="1" max="12" />
+                    </td>
+                    <td>
+                        <input id="year_end" name="year_end" type="number" value="2015" min="2010" max="2050" />
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div><a id="generate" href="#" onclick="build_time_sheet(); fill_time_sheet(); return false;">Fill Time Sheet</a></div>
+    
+</form>
+
+
+<h1>Time Sheet for student and graduate assistants</h1>
+
+<div id="personal_details">
+    Name: <b class="name"></b><br/>
+    Surname: <b class="surname"></b><br/>
+    Institute: <b class="institute"></b>
+</div>
+
+<div id="sheets">
+    
+</div>
+
+<div id="work_details">
+    Absolute time worked: <b class="absolute_time_worked"></b><!--br/>
+    Planned working time: <b class="planned_working_time"></b-->
+</div>
+
+<div>
+    I hereby declare having worked the recorded time within the frame of my working contract.
+    I am aware that for working between 8pm and 6am I need to apply for a permit from the institute.
+</div>
+
+<div style="margin-top: 5em; border-top: 1px solid black;">
+    date/signature of tutor
+</div>
+
+<div style="margin-top: 5em; border-top: 1px solid black;">
+    date/signature of assistant
+</div>
+
+
+<script>
+    
+    var weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var months = ["January", "February", "March", "April", "May", "June", "Juli", "August", "September", "October", "November", "December"];
+    
+    var millisecond = 1;
+    var second = 1000 * millisecond;
+    var minute = 60 * second;
+    var hour = 60 * minute;
+    var day = 24 * hour;
+    
+    function random_number_between(min, max) {
+        return Math.floor(Math.random()*(max-min+1)+min);
+    }
+    
+    function shuffle(o){
+        for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+        return o;
+    }
+    
+    function calender_week(date) {
+        var year = date.getFullYear();
+        var january_first = new Date(year, 0, 1);
+        var weekday_january_first = january_first.getDay();
+        
+        var time_january_first = january_first.getTime();
+        var time_date = date.getTime();
+        
+        var time_difference = time_date - time_january_first;
+        var days_since_jan_first = time_difference / day + 1;
+        
+        var days_in_first_week_last_year = weekday_january_first - 1;
+        var days_in_first_week_this_year = days_in_first_week_last_year < 1 ? 0 : 7 - days_in_first_week_last_year;
+        
+        var full_weeks_since_jan_first = (days_in_first_week_last_year + days_since_jan_first + 1 + 7) / 7;
+        
+        var cal_week = Math.floor(full_weeks_since_jan_first)
+        return cal_week;
+    }
+    
+    var already_built = false;
+    function build_time_sheet() {
+        if(!already_built) {
+            already_built = true;
+            
+            
+            var m1 = parseInt(month_start.value) - 1; // Javascript dates start at 0
+            var y1 = parseInt(year_start.value);
+            var m2 = parseInt(month_end.value) - 1; // Javascript dates start at 0
+            var y2 = parseInt(year_end.value);
+        
+            var date1 = new Date(y1, m1);
+            var date2 = new Date(y2, m2 + 1); // +1 because we need run the for loop from first day UNTIL last day
+        
+            var timeSince1 = date1.getTime();
+            var timeSince2 = date2.getTime();
+        
+            for(var time = timeSince1; time < timeSince2; time += 1 * day) {
+            
+                var date = new Date(time);
+            
+                if($("table.sheet:last").size() == 0 || date.getDay() == 1) {
+                    $("div#sheets").append(""+
+                        "<table class='sheet'>"+
+                            "<thead>"+
+                                "<tr>"+
+                                    '<th rowspan="2">'+date.getFullYear()+' calender week '+calender_week(date)+'</th>'+
+                                    '<th colspan="4">working time including breaks</th>'+
+                                    '<th colspan="2">breaks</th>'+
+                                    '<th colspan="2">vacation</th>'+
+                                "</tr>"+
+                                "<tr>"+
+                                    "<th>start</th>"+
+                                    "<th>end</th>"+
+                                    "<th>hours</th>"+
+                                    "<th>mins</th>"+
+                                    "<th>hours</th>"+
+                                    "<th>mins</th>"+
+                                    "<th>hours</th>"+
+                                    "<th>mins</th>"+
+                                "</tr>"+
+                            "</thead>"+
+                        "</table>"+
+                    "");
+                }
+            
+                var weekday = date.getDay();
+                var monthday = date.getDate();
+                var month = date.getMonth();
+                var year = date.getFullYear();
+        
+                var timeString = weekdays[weekday] + ", " + months[month] + " " + monthday + ", " + year;
+            
+                $("table.sheet:last").append(""+
+                    "<tr data-time='"+time+"'>"+
+                        "<td>"+timeString+"</td>"+
+                        "<td>"+
+                            "<input class='start_hour' type='number' min='0' max='23' onchange='update_working_time(this);' />:<input class='start_minute' type='number' min='0' max='59' onchange='update_working_time(this);' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='end_hour' type='number' min='0' max='23' onchange='update_working_time(this);' />:<input class='end_minute' type='number' min='0' max='59' onchange='update_working_time(this);' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='work_hours' type='number' min='0' max='23' disabled='disabled' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='work_minutes' type='number' min='0' max='59' disabled='disabled' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='break_hours' type='number' min='0' max='23' onchange='update_working_time(this);' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='break_minutes' type='number' min='0' max='59' onchange='update_working_time(this);' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='vacation_hours' type='number' min='0' max='23' />"+
+                        "</td>"+
+                        "<td>"+
+                            "<input class='vacation_minutes' type='number' min='0' max='59' />"+
+                        "</td>"+
+                    "</tr>"+
+                "");
+            }
+            
+        }
+    }
+    
+    var already_filled = false;
+    function fill_time_sheet() {
+        if(!already_filled) {
+            already_filled = true;
+            
+            // fill personal details
+            
+            var personal_details = $("#personal_details");
+            personal_details.find(".name").text($("#name").val());
+            personal_details.find(".surname").text($("#surname").val());
+            personal_details.find(".institute").text($("#institute").val());
+            
+            
+            // fill dates
+            
+            var all_dates = $("tr[data-time]").map(function(index, elem) {
+                var data_time = $(elem).attr("data-time");
+                var time = parseInt(data_time);
+                var date = new Date(time);
+                return date;
+            });
+                
+            var legal_dates = $.grep(all_dates, function(date, index) {
+                var weekday = date.getDay();
+                if(weekday == 0 || weekday == 6) return false; // no Sundays or Saturdays
+                if(isFeiertag(date, "NI")) return false; // no days that are Feiertage in Niedersachsen
+            
+                return true;
+            });
+                
+            var months = [];
+            var dates_by_month = {};
+            for(var index = 0; index < legal_dates.length; index++) {
+                var date = legal_dates[index];
+            
+                var month = date.getMonth();
+            
+                if(!(month in dates_by_month)) {
+                    months.push(month);
+                    dates_by_month[month] = [];
+                }
+            
+                dates_by_month[month] = dates_by_month[month].concat([date]);
+            }
+        
+            var hours = parseInt(hours_per_month.value);
+        
+            for(var index = 0; index < months.length; index++) {
+                var month = months[index];
+            
+                var dates_for_month = dates_by_month[month];
+                shuffle(dates_for_month);
+            
+                var max = dates_for_month.length;
+                var min = Math.floor(max / 2);
+            
+                var number_of_worked_days = random_number_between(min, max);
+            
+                var some_dates = dates_for_month.slice(0, number_of_worked_days);
+            
+                var avg_working_time_per_date = (hours / some_dates.length);
+            
+                //var avg_minus_half = Math.floor(avg_working_time_per_date - avg_working_time_per_date / 2);
+                var avg_plus_half = Math.floor(avg_working_time_per_date + avg_working_time_per_date / 2);
+            
+                var working_hours = [];
+                            
+                // measured in quarter hours (*4)
+                var remaining_hours = hours * 4;
+                while(remaining_hours > 0) {
+                    //var working_time = random_number_between(avg_minus_half, avg_plus_half);
+                
+                    // measured in quarter hours (*4)
+                    var working_time = random_number_between(avg_working_time_per_date * 4, avg_plus_half * 4);
+                
+                    if(working_time > remaining_hours) {
+                        working_time = remaining_hours;
+                        remaining_hours = 0;
+                    } else { // enough hours remain
+                        var new_remaining_hours = remaining_hours - working_time;
+                        if(new_remaining_hours < 1 * 4) {
+                            working_time = remaining_hours;
+                            remaining_hours = 0;
+                        } else {
+                            remaining_hours = new_remaining_hours;
+                        }
+                    }
+            
+                    working_hours.push(working_time);
+                }
+            
+                for(var index2 = 0; index2 < working_hours.length; index2++) {
+                
+                    // "working hour" is measured in quarter hours
+                    var working_hour = working_hours[index2];
+                
+                    if(dates_for_month.length > working_hours.length) {
+                        var date = dates_for_month[index2];
+                        var date_time = date.getTime();
+                    
+                        var start_date = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0, 0);
+                        var start_time = start_date.getTime();
+                    
+                        var the_hours = Math.floor(working_hour / 4);
+                        var the_minutes = (working_hour % 4) * 15;
+                    
+                        // possible breaks: 0 minutes, 15 minutes, 30 minutes, 45 minutes and 1 hour
+                        var break_time = random_number_between(0, 4) * 15 * minute;
+                        var break_date = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, break_time / minute, 0);
+                    
+                        var end_time = start_time + the_hours * hour + the_minutes * minute + break_time;
+                    
+                        // so you do not always start at 9:00
+                        var shift_time = random_number_between(0, end_time - start_time);
+                        // shift_time should be quarter hours
+                        shift_time = Math.floor(shift_time / minute / 15) * 15 * minute;
+                    
+                        start_date = new Date(start_time + shift_time);
+                        var end_date = new Date(end_time + shift_time);
+                    
+                        // put start and end date into html form
+                        var tr = $("tr[data-time='"+date_time+"']");
+                    
+                        var start_hour = tr.find(".start_hour")
+                        start_hour.val(start_date.getHours());
+                    
+                        var start_minute = tr.find(".start_minute")
+                        start_minute.val(start_date.getMinutes());
+                    
+                        tr.find(".end_hour").val(end_date.getHours());
+                        tr.find(".end_minute").val(end_date.getMinutes());
+                    
+                        if(break_date.getHours() != 0 || break_date.getMinutes() != 0) {
+                            tr.find(".break_hours").val(break_date.getHours());
+                            tr.find(".break_minutes").val(break_date.getMinutes());
+                        }
+                    
+                        start_hour[0].onchange();
+                        start_minute[0].onchange();
+                    }
+                }
+            }
+            
+            
+            // fill work details
+            
+            var all_work_hours = $("input.work_hours").map(function(i, input) { return val_as_int($(input)); });
+            var all_work_minutes = $("input.work_minutes").map(function(i, input) { return val_as_int($(input)); });
+            var sum_minutes = 0;
+            for(var index = 0; index < all_work_hours.length; index++) {
+                sum_minutes += all_work_hours[index] * 60;
+            }
+            for(var index = 0; index < all_work_minutes.length; index++) {
+                sum_minutes += all_work_minutes[index];
+            }
+            
+            var abs_hours = Math.floor(sum_minutes / 60);
+            var abs_minutes = sum_minutes % 60;
+            
+            var work_details = $("#work_details");
+            work_details.find(".absolute_time_worked").text(""+abs_hours+":"+abs_minutes);
+            
+            
+            // does not work for strange reasons...
+            //var m1 = val_as_int($("input#month_start")) - 1; // Javascript dates start at 0
+            //var y1 = val_as_int($("input#year_start"));
+            //var m2 = val_as_int($("input#month_end")) - 1; // Javascript dates start at 0
+            //var y2 = val_as_int($("input#year_end"));
+            //var hpm = val_as_int($("input#hours_per_month"));
+            //
+            //var date1 = new Date(y1, m1);
+            //var date2 = new Date(y2, m2 + 1); // +1 because we need run the for loop from first day UNTIL last day
+            //
+            //var timeSince1 = date1.getTime();
+            //var timeSince2 = date2.getTime();
+            //
+            //var number_of_months = 0;
+            //var last_month = -1;
+            //for(var tttime = timeSince1; tttime < timeSince2; tttime += 1 * day) {
+            //    var current_date = new Date(tttime);
+            //    var current_month = current_date.getMonth();
+            //    if(last_month == -1) {
+            //        last_month = current_month;
+            //        number_of_months += 1;
+            //    } else {
+            //        if(last_month != current_month) {
+            //            number_of_months += 1;
+            //            last_month = current_month;
+            //        }
+            //    }
+            //}
+            //
+            //work_details.find(".planned_working_time").text(""+(number_of_months * hpm)+":00");
+        }
+    }
+    
+    
+    function val_as_int(input) {
+        var val = input.val();
+        if(!val || val == "") return 0;
+        else return parseInt(val);
+    }
+    
+    
+    function update_working_time(elem) {
+        var tr = $(elem).parent().parent();
+        
+        var time = parseInt(tr.attr("data-time"));
+        var date = new Date(time);
+        
+        var input_start_hour = tr.find("input.start_hour");
+        var input_start_minute = tr.find("input.start_minute");
+        var input_end_hour = tr.find("input.end_hour");
+        var input_end_minute = tr.find("input.end_minute");
+        var input_break_hours = tr.find("input.break_hours");
+        var input_break_minutes = tr.find("input.break_minutes");
+        var input_work_hours = tr.find("input.work_hours");
+        var input_work_minutes = tr.find("input.work_minutes");
+        
+        var start_date = new Date(date.getFullYear(), date.getMonth(), date.getDate(), val_as_int(input_start_hour), val_as_int(input_start_minute));
+        var end_date = new Date(date.getFullYear(), date.getMonth(), date.getDate(), val_as_int(input_end_hour), val_as_int(input_end_minute));
+        
+        var break_hours = val_as_int(input_break_hours);
+        var break_minutes = val_as_int(input_break_minutes);
+        
+        var date_difference = end_date.getTime() - start_date.getTime() - break_hours * hour - break_minutes * minute;
+        
+        var hours = Math.floor(date_difference / (1 * hour))
+        var minutes = Math.floor((date_difference - hours * hour) / (1 * minute))
+        
+        input_work_hours.val(hours);
+        input_work_minutes.val(minutes);
+    }
+
+</script>
+
+
+
+<script>
+    
+    /*
+     * Jahr: 2015
+     * Bundesland:
+     * 	BW = Baden-Württemberg
+     * 	BY = Bayern
+     * 	BE = Berlin
+     * 	BB = Brandenburg
+     * 	HB = Bremen
+     * 	HH = Hamburg
+     * 	HE = Hessen
+     * 	MV = Mecklenburg-Vorpommern
+     * 	NI = Niedersachsen
+     * 	NW = Nordrhein-Westfalen
+     * 	RP = Rheinland-Pfalz
+     * 	SL = Saarland
+     * 	SN = Sachsen
+     * 	ST = Sachsen-Anhalt
+     * 	SH = Schleswig-Holstein
+     * 	TH = Thüringen
+     */
+    // datum = '2015-12-24', Bula=Bundesland = 'BW' oder 'NI'
+    function isFeiertagStr(datum,bula) {
+        var year = datum.split('-')[0];
+        return getFeiertage(year,bula).contains(datum);
+    }
+    // datum = Date - Objekt.
+    function isFeiertag(datum,bula) {
+        return getFeiertage(datum.getFullYear(),bula).contains(toDS(datum));
+    }
+    // Jahr = '2014', gibt ein Array mit den Feiertagen zurück im Format '2014-12-31'
+    function getFeiertage(j,bula) { 
+        // Feste Feiertage in allen Bundeslaendern:
+        var feiertage = [j+'-01-01',j+'-05-01',j+'-10-03',j+'-12-25',j+'-12-26'];
+        
+        var maria_himmelfahrt = j+'-08-15';
+        var reformationstag = j+'-10-31';
+        var allerheiligen = j+'-11-01';
+        
+        var bussbettag = getBussBettag(j);
+        var easter_str = getOstern(j);
+        var easter_date = new Date( easter_str.replace( /(\d{2})-(\d{2})-(\d{4})/, "$2/$1/$3") );
+        var karfreitag = new Date(easter_date.getTime());
+        karfreitag.addDays(-2);
+        var ostermontag = new Date(easter_date.getTime());
+        ostermontag.addDays(1);
+        var christi_himmelfahrt = new Date(easter_date.getTime());
+        christi_himmelfahrt.addDays(39);
+        var pfingstsonntag = new Date(easter_date.getTime());
+        pfingstsonntag.addDays(49);
+        var pfingstmontag = new Date(easter_date.getTime());
+        pfingstmontag.addDays(50);
+        var fronleichnam = new Date(easter_date.getTime());
+        fronleichnam.addDays(60);
+        
+        // wieder alle: 
+        feiertage = feiertage.concat([toDS(karfreitag),toDS(ostermontag),toDS(christi_himmelfahrt),toDS(pfingstmontag)]);
+        
+        // Jetzt Bundeslandspezifisch
+        // Heilige 3 Koenige 
+        if (bula == 'BW' || bula == 'BY' || bula == 'ST') {
+            feiertage.unshift(j+'-01-06');
+        }
+        if (bula == 'BB') {
+            feiertage.unshift(easter_str);
+            feiertage.unshift(toDS(pfingstsonntag));
+        }
+        // Fronleichnam
+         if (bula == 'BW' || bula == 'BY' || bula == 'HE' || bula == 'NW' || bula == 'RP' || bula == 'SL') {
+             feiertage.unshift(toDS(fronleichnam));
+        }
+        
+        // Maria Himmelfahrt
+        if (bula == 'SL') {
+            feiertage.unshift(maria_himmelfahrt);
+        }
+        // Reformationstag
+        if (bula == 'BB' || bula == 'MV' || bula == 'SN' || bula == 'ST' || bula == 'TH') {
+            feiertage.unshift(reformationstag);
+        }
+        // Allerheiligen
+        
+        if (bula == 'BW' || bula == 'BY' || bula == 'NW' || bula == 'RP' || bula == 'SL') {
+            feiertage.unshift(allerheiligen);
+        }
+        
+        // Buss und Bettag
+        if (bula == 'SN') {
+            feiertage.unshift(toDS(bussbettag));
+        }
+        feiertage.sort();
+        return feiertage;
+    }
+    
+    
+    // Magic Gauss, irgendwo gefunden, hoffe, es stimmt.
+    function getOstern(Y) {
+        var C = Math.floor(Y/100);
+        var N = Y - 19*Math.floor(Y/19);
+        var K = Math.floor((C - 17)/25);
+        var I = C - Math.floor(C/4) - Math.floor((C - K)/3) + 19*N + 15;
+        I = I - 30*Math.floor((I/30));
+        I = I - Math.floor(I/28)*(1 - Math.floor(I/28)*Math.floor(29/(I + 1))*Math.floor((21 - N)/11));
+        var J = Y + Math.floor(Y/4) + I + 2 - C + Math.floor(C/4);
+        J = J - 7*Math.floor(J/7);
+        var L = I - J;
+        var M = 3 + Math.floor((L + 40)/44);
+        var D = L + 28 - 31*Math.floor(M/4);
+        return Y + '-' + two(M) + '-' + two(D);
+    }
+    
+    function getBussBettag(jahr) {
+        var weihnachten = new Date(jahr, 11, 25, 12, 0, 0);
+        var dow = weihnachten.getDate();
+        var tageVorWeihnachten = (((dow == 0) ? 7 : dow) + 21 );
+        var bbtag = new Date(weihnachten.getTime());
+        bbtag.addDays(-tageVorWeihnachten);
+        var monat = two(bbtag.getMonth() + 1);
+        var tag = two(bbtag.getDate());
+        return jahr+'-'+monat+'-'+tag;
+    }
+    
+    // macht aus 1 => 01
+    function two(number) { return (number < 10) ? '0' + number : number; }
+     
+    // wandelt ein Date-Objekt in einen Datumsstring um yyy-mm-dd
+    function toDS(date) { 
+        var year = date.getFullYear(); 
+        var month = date.getMonth()+1; 
+        month = two(month);
+        day = two(date.getDate());
+        return year + '-' + month + '-' +day;
+    }
+    // Erweitert Date um eine addDays()-Methode
+    Date.prototype.addDays = function(days) {
+        this.setDate(this.getDate()+days);
+    }
+    // Erweitert Array um eine contains()-Methode.
+    Array.prototype.contains = function(obj) {
+        var i = this.length;
+        while (i--) {
+            if (this[i] == obj) {
+                return true;
+            }
+        }
+        return false;
+    }  
+    
+</script>
+
+
+</body>
